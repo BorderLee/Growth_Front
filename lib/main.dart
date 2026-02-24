@@ -38,7 +38,7 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isListening = false;
 
   // 기존 "입력된 텍스트" UI를 그대로 쓰되, A 단계에서는 상태/결과 표시로 사용
-  String _recognizedText = "버튼을 누르고 녹음을 시작해보세요.";
+  String _recognizedText = "버튼을 누르고 녹음을 시작해보세요. ";
   String _pathText = "";
 
   DateTime? _recordingStartedAt;
