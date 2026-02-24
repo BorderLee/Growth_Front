@@ -39,6 +39,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // 기존 "입력된 텍스트" UI를 그대로 쓰되, A 단계에서는 상태/결과 표시로 사용
   String _recognizedText = "버튼을 누르고 녹음을 시작해보세요.";
+  String _pathText = "";
 
   DateTime? _recordingStartedAt;
   String? _lastSavedPath;
@@ -52,7 +53,9 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<String> _buildOutputPath() async {
     final dir = await getApplicationDocumentsDirectory();
     final fileName =
-        "medex_${DateTime.now().millisecondsSinceEpoch}.wav";
+        "medex_${DateTime
+        .now()
+        .millisecondsSinceEpoch}.wav";
     return "${dir.path}/$fileName";
   }
 
@@ -83,6 +86,7 @@ class _MyHomePageState extends State<MyHomePage> {
         _recordingStartedAt = DateTime.now();
         _lastSavedPath = outPath;
         _recognizedText = "녹음 중...\n$outPath";
+        _pathText;
       });
     }
     else {
@@ -92,12 +96,15 @@ class _MyHomePageState extends State<MyHomePage> {
 
       final durationMs = startedAt == null
           ? null
-          : DateTime.now().difference(startedAt).inMilliseconds;
+          : DateTime
+          .now()
+          .difference(startedAt)
+          .inMilliseconds;
 
       if (path == null) {
         setState(() {
           _isListening = false;
-          _recognizedText = "녹음 종료 실패 (path == null)";
+          _recognizedText = "녹음 저장 경로를 찾을 수 없습니다 (path == null)";
         });
         return;
       }
@@ -107,7 +114,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
       setState(() {
         _isListening = false;
-        _recognizedText = [
+        //here===========================
+        _recognizedText = "여기에 녹음한 stt 넣으세요";
+        //===============================
+        _pathText = [
           "녹음 완료",
           "경로: $path",
           if (durationMs != null) "길이(ms): $durationMs",
@@ -116,7 +126,8 @@ class _MyHomePageState extends State<MyHomePage> {
           "샘플레이트: 16000Hz",
         ].join("\n");
       });
-      debugPrint("RECORD DONE path=$path durationMs=$durationMs size=$sizeBytes");
+      debugPrint(
+          "RECORD DONE path=$path durationMs=$durationMs size=$sizeBytes");
     }
   }
 
@@ -124,39 +135,55 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _toggleListening,
-        icon: Icon(_isListening ? Icons.stop : Icons.mic),
-        label: Text(_isListening ? "녹음 종료" : "녹음 시작"),
-        backgroundColor: _isListening ? Colors.red : Colors.green,
-      ),
+      floatingActionButton: _buildFab(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              "의사 설명 텍스트",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: SingleChildScrollView(
-                  child: Text(
-                    _recognizedText.isEmpty ? "대기 중..." : _recognizedText,
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-            ),
-          ],
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildFab() {
+    return FloatingActionButton.extended(
+      onPressed: _toggleListening,
+      icon: Icon(_isListening ? Icons.stop : Icons.mic),
+      label: Text(_isListening ? "녹음 종료" : "녹음 시작"),
+      backgroundColor: _isListening ? Colors.red : Colors.green,
+    );
+  }
+
+  Widget _buildBody() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 8),
+          Expanded(child: _buildTextPanel()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return const Text(
+      "의사 설명 텍스트",
+      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    );
+  }
+
+  Widget _buildTextPanel() {
+    final text = _recognizedText.isEmpty ? "대기 중..." : _recognizedText;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: SingleChildScrollView(
+        child: Text(
+          text,
+          style: const TextStyle(fontSize: 16),
         ),
       ),
     );
