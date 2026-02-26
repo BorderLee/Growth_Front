@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:medexplain/stt/audio_source.dart';
+import 'package:medexplain/stt/models.dart';
+import 'package:medexplain/stt/stream_session_controller.dart';
+import 'package:medexplain/stt/transcript_store.dart';
+import 'package:medexplain/stt/translation_store.dart';
+import 'package:medexplain/stt/ws_transport.dart';
 
 void main() {
   runApp(const MyApp());
@@ -34,6 +40,12 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final AudioRecorder _recorder = AudioRecorder();
+  late final WsTransport ws;
+  late final TranscriptStore transcriptStore;
+  StreamSessionController? session;
+
+  WsConnState connState = WsConnState.disconnected;
+  bool running = false;
 
   bool _isListening = false;
 
@@ -43,6 +55,29 @@ class _MyHomePageState extends State<MyHomePage> {
 
   DateTime? _recordingStartedAt;
   String? _lastSavedPath;
+
+  @override
+  void initState() {
+    super.initState();
+
+    transcriptStore = TranscriptStore();
+    ws = WsTransport(uri: Uri.parse('ws://YOUR_SERVER/ws'));
+
+    // 연결 상태 → "재연결 중…" 표시용
+    ws.stateStream.listen((s) {
+      if (!mounted) return;
+      setState(() => connState = s);
+    });
+
+    // 서버 이벤트 → STT(Interim/Final) 누적 반영
+    ws.eventStream.listen((e) {
+      final stt = SttEvent.fromWs(e);
+      if (stt != null) {
+        transcriptStore.apply(stt);
+        if (mounted) setState(() {});
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -186,6 +221,50 @@ class _MyHomePageState extends State<MyHomePage> {
           style: const TextStyle(fontSize: 16),
         ),
       ),
+    );
+  }
+
+  Widget _translationPanel(BuildContext context) {
+    final tr = context.watch<TranslationStore>();
+
+    Widget block(String title, String text, bool needsConfirm) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Text(text.isEmpty ? '—' : text),
+                ),
+              ),
+              if (needsConfirm) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  '확인 필요',
+                  style: TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        block('EN', tr.enText, tr.enNeedsConfirm),
+        const SizedBox(width: 12),
+        block('中文', tr.zhText, tr.zhNeedsConfirm),
+      ],
     );
   }
 }

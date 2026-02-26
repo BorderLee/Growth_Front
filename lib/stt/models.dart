@@ -47,3 +47,24 @@ class SttEvent {
     return SttEvent(isFinal: isFinal, text: text);
   }
 }
+
+class TranslateEvent {
+  final String target; // en | zh
+  final String text;
+  final bool needsConfirm;
+
+  TranslateEvent({
+    required this.target,
+    required this.text,
+    required this.needsConfirm,
+  });
+
+  static TranslateEvent? fromWs(WsEvent e) {
+    if (e.type != 'translate') return null;
+    final target = (e.raw['target'] ?? '').toString();
+    final text = (e.raw['text'] ?? '').toString();
+    final needsConfirm = e.raw['needsConfirm'] == true;
+    if (target.isEmpty || text.isEmpty) return null;
+    return TranslateEvent(target: target, text: text, needsConfirm: needsConfirm);
+  }
+}
