@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:medexplain/stt/audio_source.dart';
 import 'package:medexplain/stt/models.dart';
 import 'package:medexplain/stt/stream_session_controller.dart';
@@ -10,7 +12,15 @@ import 'package:medexplain/stt/translation_store.dart';
 import 'package:medexplain/stt/ws_transport.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => TranscriptStore()),
+        ChangeNotifierProvider(create: (_) => TranslationStore()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -57,27 +67,37 @@ class _MyHomePageState extends State<MyHomePage> {
   String? _lastSavedPath;
 
   @override
-  void initState() {
-    super.initState();
+void initState() {
+  super.initState();
 
-    transcriptStore = TranscriptStore();
-    ws = WsTransport(uri: Uri.parse('ws://YOUR_SERVER/ws'));
+  transcriptStore = TranscriptStore();
+  ws = WsTransport(uri: Uri.parse("ws://127.0.0.1:8000/ws/stt"));
 
-    // 연결 상태 → "재연결 중…" 표시용
-    ws.stateStream.listen((s) {
-      if (!mounted) return;
-      setState(() => connState = s);
-    });
-
-    // 서버 이벤트 → STT(Interim/Final) 누적 반영
-    ws.eventStream.listen((e) {
-      final stt = SttEvent.fromWs(e);
-      if (stt != null) {
-        transcriptStore.apply(stt);
-        if (mounted) setState(() {});
+  ws.connect().then((_) {
+    ws.sendJson({
+      "type": "session.start",
+      "sessionId": "test-session",
+      "audio": {
+        "encoding": "LINEAR16",
+        "sampleRateHz": 16000,
+        "channels": 1,
       }
     });
-  }
+  });
+
+  ws.stateStream.listen((s) {
+    if (!mounted) return;
+    setState(() => connState = s);
+  });
+
+  ws.eventStream.listen((e) {
+    final stt = SttEvent.fromWs(e);
+    if (stt != null) {
+      transcriptStore.apply(stt);
+      if (mounted) setState(() {});
+    }
+  });
+}
 
   @override
   void dispose() {
@@ -146,6 +166,19 @@ class _MyHomePageState extends State<MyHomePage> {
       final file = File(path);
       final exists = await file.exists();
       final sizeBytes = exists ? await file.length() : 0;
+
+      // === SEND AUDIO (test) ===
+      if (exists && sizeBytes > 0) {
+        final bytes = await file.readAsBytes();
+        final b64 = base64Encode(bytes);
+        
+        ws.sendJson({
+          "type": "audio","sessionId": "test-session","seq": DateTime.now().millisecondsSinceEpoch,
+          "bytes": bytes.length,"audioB64": b64,});
+          
+          print("AUDIO SENT bytes=${bytes.length}");
+          } 
+          else {print("AUDIO NOT SENT exists=$exists sizeBytes=$sizeBytes");}
 
       setState(() {
         _isListening = false;
