@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'models.dart';
 
@@ -22,6 +23,7 @@ class WsTransport {
   WsTransport({required this.uri});
 
   Future<void> connect({bool reconnecting = false}) async {
+    print("Connecting to: $uri");
     _setState(reconnecting ? WsConnState.reconnecting : WsConnState.connecting);
 
     try {
@@ -29,7 +31,7 @@ class WsTransport {
       _setState(WsConnState.connected);
 
       _sub = _ch!.stream.listen(
-            (data) {
+        (data) {
           final s = data is String ? data : utf8.decode(data as List<int>);
           final ev = WsEvent.tryParse(s);
           if (ev != null) _eventCtrl.add(ev);
@@ -38,9 +40,11 @@ class WsTransport {
         onDone: () => _handleClosed(),
         cancelOnError: true,
       );
-    } catch (_) {
+    } catch (ex) {
       _handleClosed();
-      rethrow;
+      print('[WS] connect failed');
+      print(ex);
+      return;
     }
   }
 
