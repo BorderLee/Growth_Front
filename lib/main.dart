@@ -4,12 +4,13 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'package:medexplain/stt/audio_source.dart';
 import 'package:medexplain/stt/models.dart';
 import 'package:medexplain/stt/stream_session_controller.dart';
 import 'package:medexplain/stt/transcript_store.dart';
 import 'package:medexplain/stt/translation_store.dart';
 import 'package:medexplain/stt/ws_transport.dart';
+import 'screens/result_screen.dart';
+import 'screens/records_screen.dart';
 
 void main() {
   runApp(
@@ -26,16 +27,15 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'MedExplain',
       theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.green),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
       ),
       debugShowCheckedModeBanner: false,
-      home: const MyHomePage(title:'MedExplain'),
+      home: const MyHomePage(title: 'MedExplain'),
     );
   }
 }
@@ -55,58 +55,43 @@ class _MyHomePageState extends State<MyHomePage> {
   StreamSessionController? session;
 
   WsConnState connState = WsConnState.disconnected;
-  bool running = false;
 
   bool _isListening = false;
-
-  // 기존 "입력된 텍스트" UI를 그대로 쓰되, A 단계에서는 상태/결과 표시로 사용
-  String _recognizedText = "버튼을 누르고 녹음을 시작해보세요. ";
-  String _pathText = "";
-
-  DateTime? _recordingStartedAt;
-  String? _lastSavedPath;
+  String _statusText = "버튼을 누르고 녹음을 시작해보세요.";
+  String? _completedTranscript;
 
   @override
-void initState() {
-  super.initState();
+  void initState() {
+    super.initState();
 
-  transcriptStore = TranscriptStore();
-  ws = WsTransport(uri: Uri.parse("ws://127.0.0.1:8000/ws/stt"));
+    transcriptStore = TranscriptStore();
+    ws = WsTransport(uri: Uri.parse("ws://10.0.2.2:8000/ws/stt"));
 
-  ws.connect().then((_) {
-    ws.sendJson({
-      "type": "session.start",
-      "sessionId": "test-session",
-      "audio": {
-        "encoding": "LINEAR16",
-        "sampleRateHz": 16000,
-        "channels": 1,
+    ws.connect().then((_) {
+      ws.sendJson({
+        "type": "session.start",
+        "sessionId": "test-session",
+        "audio": {
+          "encoding": "LINEAR16",
+          "sampleRateHz": 16000,
+          "channels": 1,
+        }
+      });
+    });
+
+    ws.stateStream.listen((s) {
+      if (!mounted) return;
+      setState(() => connState = s);
+    });
+
+    ws.eventStream.listen((e) {
+      final stt = SttEvent.fromWs(e);
+      if (stt != null) {
+        transcriptStore.apply(stt);
+        if (mounted) setState(() {});
       }
     });
-  });
-
-  ws.stateStream.listen((s) {
-    if (!mounted) return;
-    setState(() => connState = s);
-  });
-  
-  ws.eventStream.listen((e) {
-    final stt = SttEvent.fromWs(e);
-    if (stt != null) {
-      transcriptStore.apply(stt);
-      if (mounted) setState(() {});
-      return;
-      }
-      
-      if (e.type == "translation") {
-        final payload = e.raw["payload"] ?? {};
-        final lang = payload["target_lang"];
-        final text = payload["translated_text"];
-        
-        print("TRANSLATION [$lang] $text");
-        }
-        });
-}
+  }
 
   @override
   void dispose() {
@@ -117,23 +102,20 @@ void initState() {
   Future<String> _buildOutputPath() async {
     final dir = await getApplicationDocumentsDirectory();
     final fileName =
-        "medex_${DateTime
-        .now()
-        .millisecondsSinceEpoch}.wav";
+        "medex_${DateTime.now().millisecondsSinceEpoch}.wav";
     return "${dir.path}/$fileName";
   }
 
   Future<void> _toggleListening() async {
     if (!_isListening) {
-      // 1) 권한 체크
       final hasPermission = await _recorder.hasPermission();
       if (!hasPermission) {
         setState(() {
-          _recognizedText = "마이크 권한이 필요합니다. 설정에서 권한을 허용해주세요.";
+          _statusText = "마이크 권한이 필요합니다. 설정에서 권한을 허용해주세요.";
         });
         return;
       }
-      //======START======
+
       final outPath = await _buildOutputPath();
 
       await _recorder.start(
@@ -145,73 +127,81 @@ void initState() {
         path: outPath,
       );
 
+      transcriptStore.reset();
       setState(() {
         _isListening = true;
-        _recordingStartedAt = DateTime.now();
-        _lastSavedPath = outPath;
-        _recognizedText = "녹음 중...\n$outPath";
-        _pathText;
+        _completedTranscript = null;
+        _statusText = "녹음 중...";
       });
-    }
-    else {
-      // ===== STOP =====
+    } else {
       final path = await _recorder.stop();
-      final startedAt = _recordingStartedAt;
-
-      final durationMs = startedAt == null
-          ? null
-          : DateTime
-          .now()
-          .difference(startedAt)
-          .inMilliseconds;
 
       if (path == null) {
         setState(() {
           _isListening = false;
-          _recognizedText = "녹음 저장 경로를 찾을 수 없습니다 (path == null)";
+          _statusText = "녹음 저장 경로를 찾을 수 없습니다.";
         });
         return;
       }
+
       final file = File(path);
       final exists = await file.exists();
       final sizeBytes = exists ? await file.length() : 0;
 
-      // === SEND AUDIO (test) ===
       if (exists && sizeBytes > 0) {
         final bytes = await file.readAsBytes();
         final b64 = base64Encode(bytes);
-        
         ws.sendJson({
-          "type": "audio","sessionId": "test-session","seq": DateTime.now().millisecondsSinceEpoch,
-          "bytes": bytes.length,"audioB64": b64,});
-          
-          print("AUDIO SENT bytes=${bytes.length}");
-          } 
-          else {print("AUDIO NOT SENT exists=$exists sizeBytes=$sizeBytes");}
+          "type": "audio",
+          "sessionId": "test-session",
+          "seq": DateTime.now().millisecondsSinceEpoch,
+          "bytes": bytes.length,
+          "audioB64": b64,
+        });
+        debugPrint("AUDIO SENT bytes=${bytes.length}");
+      }
+
+      // STT 결과가 transcriptStore에 있으면 사용, 없으면 빈 문자열
+      final transcript = transcriptStore.combinedText.trim();
 
       setState(() {
         _isListening = false;
-        //here===========================
-        _recognizedText = "여기에 녹음한 stt 넣으세요";
-        //===============================
-        _pathText = [
-          "녹음 완료",
-          "경로: $path",
-          if (durationMs != null) "길이(ms): $durationMs",
-          "파일 존재: $exists",
-          "파일 크기(bytes): $sizeBytes",
-          "샘플레이트: 16000Hz",
-        ].join("\n");
+        _completedTranscript = transcript;
+        _statusText = transcript.isNotEmpty
+            ? transcript
+            : "녹음이 완료되었습니다. (STT 결과 없음)";
       });
-      debugPrint(
-          "RECORD DONE path=$path durationMs=$durationMs size=$sizeBytes");
     }
+  }
+
+  void _goToResult() {
+    final text = _completedTranscript ?? '';
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResultScreen(transcript: text),
+      ),
+    );
+  }
+
+  void _goToRecords() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const RecordsScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_outlined),
+            tooltip: '진료 기록',
+            onPressed: _goToRecords,
+          ),
+        ],
+      ),
       floatingActionButton: _buildFab(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: _buildBody(),
@@ -236,6 +226,10 @@ void initState() {
           _buildHeader(),
           const SizedBox(height: 8),
           Expanded(child: _buildTextPanel()),
+          if (_completedTranscript != null && !_isListening) ...[
+            const SizedBox(height: 12),
+            _buildResultButton(),
+          ],
         ],
       ),
     );
@@ -249,7 +243,9 @@ void initState() {
   }
 
   Widget _buildTextPanel() {
-    final text = _recognizedText.isEmpty ? "대기 중..." : _recognizedText;
+    final displayText = _isListening
+        ? ("녹음 중...\n\n${transcriptStore.combinedText}")
+        : _statusText;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -259,54 +255,22 @@ void initState() {
       ),
       child: SingleChildScrollView(
         child: Text(
-          text,
+          displayText.isEmpty ? "대기 중..." : displayText,
           style: const TextStyle(fontSize: 16),
         ),
       ),
     );
   }
 
-  Widget _translationPanel(BuildContext context) {
-    final tr = context.watch<TranslationStore>();
-
-    Widget block(String title, String text, bool needsConfirm) {
-      return Expanded(
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border.all(),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Text(text.isEmpty ? '—' : text),
-                ),
-              ),
-              if (needsConfirm) ...[
-                const SizedBox(height: 8),
-                const Text(
-                  '확인 필요',
-                  style: TextStyle(
-                      color: Colors.red, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        block('EN', tr.enText, tr.enNeedsConfirm),
-        const SizedBox(width: 12),
-        block('中文', tr.zhText, tr.zhNeedsConfirm),
-      ],
+  Widget _buildResultButton() {
+    return ElevatedButton.icon(
+      onPressed: _goToResult,
+      icon: const Icon(Icons.analytics_outlined),
+      label: const Text("결과 보기 (요약 / 용어 / 저장)"),
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 }
