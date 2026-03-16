@@ -93,29 +93,6 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  ws.stateStream.listen((s) {
-    if (!mounted) return;
-    setState(() => connState = s);
-  });
-  
-  ws.eventStream.listen((e) {
-    final stt = SttEvent.fromWs(e);
-    if (stt != null) {
-      transcriptStore.apply(stt);
-      if (mounted) setState(() {});
-      return;
-      }
-      
-      if (e.type == "translation") {
-        final payload = e.raw["payload"] ?? {};
-        final lang = payload["target_lang"];
-        final text = payload["translated_text"];
-        
-        print("TRANSLATION [$lang] $text");
-        }
-        });
-}
-
   @override
   void dispose() {
     _recorder.dispose();
