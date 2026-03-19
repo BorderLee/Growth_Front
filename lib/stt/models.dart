@@ -59,12 +59,17 @@ class TranslateEvent {
     required this.needsConfirm,
   });
 
-  static TranslateEvent? fromWs(WsEvent e) {
-    if (e.type != 'translate') return null;
-    final target = (e.raw['target'] ?? '').toString();
-    final text = (e.raw['text'] ?? '').toString();
-    final needsConfirm = e.raw['needsConfirm'] == true;
-    if (target.isEmpty || text.isEmpty) return null;
-    return TranslateEvent(target: target, text: text, needsConfirm: needsConfirm);
+  static SttEvent? fromWs(WsEvent e) {
+    if (e.type != 'stt') return null;
+    
+    final dynamic rawFinal = e.raw['isFinal'] ?? e.raw['final'];
+    final bool isFinal =
+      rawFinal == true || rawFinal?.toString().toLowerCase() == 'true';
+      
+    final text = (e.raw['text'] ?? '').toString().trim();
+
+    if (text.isEmpty) return null;
+
+    return SttEvent(isFinal: isFinal, text: text);
   }
 }

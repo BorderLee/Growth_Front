@@ -65,7 +65,7 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
 
     transcriptStore = TranscriptStore();
-    ws = WsTransport(uri: Uri.parse("ws://10.0.2.2:8000/ws/stt"));
+    ws = WsTransport(uri: Uri.parse("ws://127.0.0.1:8000/ws/stt"));
 
     ws.connect().then((_) {
       ws.sendJson({
@@ -85,10 +85,29 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     ws.eventStream.listen((e) {
+      debugPrint('WS EVENT TYPE: ${e.type}');
+      debugPrint('WS EVENT RAW MAP: ${e.raw}');
+      
       final stt = SttEvent.fromWs(e);
+      debugPrint('PARSED STT TEXT: ${stt?.text}');
+      debugPrint('PARSED STT FINAL: ${stt?.isFinal}');
+      
       if (stt != null) {
         transcriptStore.apply(stt);
-        if (mounted) setState(() {});
+        
+        final transcript = transcriptStore.combinedText.trim();
+        debugPrint('COMBINED TEXT: $transcript');
+        
+        if (mounted) {
+          setState(() {
+            if (transcript.isNotEmpty) {
+              _completedTranscript = transcript;
+              _statusText = transcript;
+            }
+          });
+        }
+      } else {
+        debugPrint('STT PARSE FAILED');
       }
     });
   }
@@ -162,26 +181,31 @@ class _MyHomePageState extends State<MyHomePage> {
       }
 
       // STT 결과가 transcriptStore에 있으면 사용, 없으면 빈 문자열
-      final transcript = transcriptStore.combinedText.trim();
-
       setState(() {
         _isListening = false;
-        _completedTranscript = transcript;
-        _statusText = transcript.isNotEmpty
-            ? transcript
-            : "녹음이 완료되었습니다. (STT 결과 없음)";
-      });
+        _statusText = "녹음이 완료되었습니다. STT 결과를 기다리는 중...";
+        });
     }
   }
 
   void _goToResult() {
-    final text = _completedTranscript ?? '';
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ResultScreen(transcript: text),
+  final text = transcriptStore.combinedText.trim();
+
+  if (text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('아직 STT 결과가 도착하지 않았습니다. 잠시 후 다시 눌러주세요.'),
       ),
     );
+    return;
   }
+
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => ResultScreen(transcript: text),
+    ),
+  );
+}
 
   void _goToRecords() {
     Navigator.of(context).push(
@@ -226,7 +250,7 @@ class _MyHomePageState extends State<MyHomePage> {
           _buildHeader(),
           const SizedBox(height: 8),
           Expanded(child: _buildTextPanel()),
-          if (_completedTranscript != null && !_isListening) ...[
+          if (transcriptStore.combinedText.trim().isNotEmpty && !_isListening) ...[
             const SizedBox(height: 12),
             _buildResultButton(),
           ],
