@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/api_models.dart';
 import '../api/api_service.dart';
 import 'widgets/section_card.dart';
+import 'records_screen.dart';
 
 const _departments = [
   '내과',
@@ -88,28 +89,59 @@ class _ResultScreenState extends State<ResultScreen> {
     }
   }
 
+  String _formatDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+
   Future<void> _showSaveDialog() async {
     String selectedDept = _departments.first;
-    final now = DateTime.now();
-    final dateStr =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    DateTime selectedDate = DateTime.now();
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('기록 저장'),
+          title: const Text('진료 기록 저장'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('날짜: $dateStr'),
-              const SizedBox(height: 12),
-              const Text('진료과 선택'),
-              const SizedBox(height: 4),
-              DropdownButton<String>(
+              const Text('진료 날짜',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                label: Text(_formatDate(selectedDate)),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  alignment: Alignment.centerLeft,
+                ),
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: ctx,
+                    initialDate: selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                    helpText: '진료 날짜 선택',
+                    confirmText: '확인',
+                    cancelText: '취소',
+                  );
+                  if (picked != null) {
+                    setDialogState(() => selectedDate = picked);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              const Text('진료과',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 6),
+              DropdownButtonFormField<String>(
                 value: selectedDept,
-                isExpanded: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                ),
                 items: _departments
                     .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                     .toList(),
@@ -124,9 +156,10 @@ class _ResultScreenState extends State<ResultScreen> {
               onPressed: () => Navigator.of(ctx).pop(false),
               child: const Text('취소'),
             ),
-            ElevatedButton(
+            FilledButton.icon(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('저장'),
+              icon: const Icon(Icons.save_outlined, size: 18),
+              label: const Text('저장하기'),
             ),
           ],
         ),
@@ -139,7 +172,7 @@ class _ResultScreenState extends State<ResultScreen> {
     try {
       await ApiService.instance.saveRecord(
         SaveRecordRequest(
-          date: dateStr,
+          date: _formatDate(selectedDate),
           department: selectedDept,
           cleanText: widget.transcript,
           summary: _summary ?? [],
@@ -149,6 +182,9 @@ class _ResultScreenState extends State<ResultScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('기록이 저장되었습니다.')),
+        );
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const RecordsScreen()),
         );
       }
     } catch (e) {
@@ -183,8 +219,7 @@ class _ResultScreenState extends State<ResultScreen> {
             IconButton(
               icon: const Icon(Icons.save_outlined),
               tooltip: '기록 저장',
-              onPressed:
-                  (_summary == null && _terms == null) ? null : _showSaveDialog,
+              onPressed: (_loadingSummary || _loadingTerms) ? null : _showSaveDialog,
             ),
         ],
       ),
