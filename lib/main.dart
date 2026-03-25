@@ -2,23 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:medexplain/stt/models.dart';
-import 'package:medexplain/stt/stream_session_controller.dart';
 import 'package:medexplain/stt/transcript_store.dart';
-import 'package:medexplain/stt/translation_store.dart';
 import 'package:medexplain/stt/ws_transport.dart';
 import 'screens/result_screen.dart';
 import 'screens/records_screen.dart';
 
 void main() {
   runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => TranscriptStore()),
-        ChangeNotifierProvider(create: (_) => TranslationStore()),
-      ],
+    ChangeNotifierProvider(
+      create: (_) => TranscriptStore(),
       child: const MyApp(),
     ),
   );
@@ -52,7 +48,8 @@ class _MyHomePageState extends State<MyHomePage> {
   final AudioRecorder _recorder = AudioRecorder();
   late final WsTransport ws;
   late final TranscriptStore transcriptStore;
-  StreamSessionController? session;
+  StreamSubscription<WsConnState>? _wsStateSub;
+  StreamSubscription<WsEvent>? _wsEventSub;
 
   WsConnState connState = WsConnState.disconnected;
 
@@ -65,7 +62,7 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
 
     transcriptStore = TranscriptStore();
-    ws = WsTransport(uri: Uri.parse("ws://127.0.0.1:8000/ws/stt"));
+    ws = WsTransport(uri: Uri.parse("ws://10.240.66.72:8000/ws/stt"));
 
     ws.connect().then((_) {
       ws.sendJson({
@@ -79,12 +76,12 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     });
 
-    ws.stateStream.listen((s) {
+    _wsStateSub = ws.stateStream.listen((s) {
       if (!mounted) return;
       setState(() => connState = s);
     });
 
-    ws.eventStream.listen((e) {
+    _wsEventSub = ws.eventStream.listen((e) {
       debugPrint('WS EVENT TYPE: ${e.type}');
       debugPrint('WS EVENT RAW MAP: ${e.raw}');
       
@@ -114,6 +111,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
+    _wsStateSub?.cancel();
+    _wsEventSub?.cancel();
+    ws.close();
     _recorder.dispose();
     super.dispose();
   }

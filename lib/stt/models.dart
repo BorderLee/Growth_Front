@@ -47,29 +47,3 @@ class SttEvent {
     return SttEvent(isFinal: isFinal, text: text);
   }
 }
-
-class TranslateEvent {
-  final String target; // en | zh
-  final String text;
-  final bool needsConfirm;
-
-  TranslateEvent({
-    required this.target,
-    required this.text,
-    required this.needsConfirm,
-  });
-
-  static SttEvent? fromWs(WsEvent e) {
-    if (e.type != 'stt') return null;
-    
-    final dynamic rawFinal = e.raw['isFinal'] ?? e.raw['final'];
-    final bool isFinal =
-      rawFinal == true || rawFinal?.toString().toLowerCase() == 'true';
-      
-    final text = (e.raw['text'] ?? '').toString().trim();
-
-    if (text.isEmpty) return null;
-
-    return SttEvent(isFinal: isFinal, text: text);
-  }
-}

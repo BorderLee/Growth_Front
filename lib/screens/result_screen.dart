@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api/api_models.dart';
 import '../api/api_service.dart';
+import 'widgets/section_card.dart';
 
 const _departments = [
   '내과',
@@ -85,25 +86,6 @@ class _ResultScreenState extends State<ResultScreen> {
         });
       }
     }
-  }
-
-  void _showTermDialog(MedTerm term) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          term.term,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Text(term.description),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _showSaveDialog() async {
@@ -201,153 +183,69 @@ class _ResultScreenState extends State<ResultScreen> {
             IconButton(
               icon: const Icon(Icons.save_outlined),
               tooltip: '기록 저장',
-              onPressed: (_summary == null && _terms == null) ? null : _showSaveDialog,
+              onPressed:
+                  (_summary == null && _terms == null) ? null : _showSaveDialog,
             ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildOriginalText(),
+          SectionCard(
+            title: '원문 텍스트',
+            child: Text(
+              widget.transcript.isEmpty ? '(내용 없음)' : widget.transcript,
+              style: const TextStyle(fontSize: 15, height: 1.5),
+            ),
+          ),
           const SizedBox(height: 20),
-          _buildSummarySection(),
+          SectionCard(
+            title: '요약',
+            child: _buildSummaryBody(),
+          ),
           const SizedBox(height: 20),
-          _buildTermsSection(),
+          SectionCard(
+            title: '의료 용어',
+            subtitle: '용어를 탭하면 설명을 볼 수 있습니다.',
+            child: _buildTermsBody(),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildOriginalText() {
-    return _SectionCard(
-      title: '원문 텍스트',
-      child: Text(
-        widget.transcript.isEmpty ? '(내용 없음)' : widget.transcript,
-        style: const TextStyle(fontSize: 15, height: 1.5),
-      ),
-    );
-  }
-
-  Widget _buildSummarySection() {
-    Widget body;
+  Widget _buildSummaryBody() {
     if (_loadingSummary) {
-      body = const Center(
+      return const Center(
           child: Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
         child: CircularProgressIndicator(),
       ));
-    } else if (_summaryError != null) {
-      body = _ErrorText(_summaryError!);
-    } else if (_summary == null || _summary!.isEmpty) {
-      body = const Text('요약 결과가 없습니다.');
-    } else {
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: _summary!
-            .map(
-              (s) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('• ',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    Expanded(
-                      child: Text(s, style: const TextStyle(fontSize: 15)),
-                    ),
-                  ],
-                ),
-              ),
-            )
-            .toList(),
-      );
     }
-
-    return _SectionCard(title: '요약', child: body);
+    if (_summaryError != null) return _ErrorText(_summaryError!);
+    if (_summary == null || _summary!.isEmpty) {
+      return const Text('요약 결과가 없습니다.');
+    }
+    return BulletList(items: _summary!);
   }
 
-  Widget _buildTermsSection() {
-    Widget body;
+  Widget _buildTermsBody() {
     if (_loadingTerms) {
-      body = const Center(
+      return const Center(
           child: Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
         child: CircularProgressIndicator(),
       ));
-    } else if (_termsError != null) {
-      body = _ErrorText(_termsError!);
-    } else if (_terms == null || _terms!.isEmpty) {
-      body = const Text('추출된 의료 용어가 없습니다.');
-    } else {
-      body = Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: _terms!
-            .map(
-              (t) => ActionChip(
-                label: Text(t.term),
-                onPressed: () => _showTermDialog(t),
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondaryContainer,
-                labelStyle: TextStyle(
-                  color: Theme.of(context).colorScheme.onSecondaryContainer,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            )
-            .toList(),
-      );
     }
-
-    return _SectionCard(
-      title: '의료 용어',
-      subtitle: '용어를 탭하면 설명을 볼 수 있습니다.',
-      child: body,
-    );
+    if (_termsError != null) return _ErrorText(_termsError!);
+    if (_terms == null || _terms!.isEmpty) {
+      return const Text('추출된 의료 용어가 없습니다.');
+    }
+    return TermChipList(terms: _terms!);
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final Widget child;
-
-  const _SectionCard({
-    required this.title,
-    this.subtitle,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(subtitle!,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.outline)),
-            ],
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+/// 인라인 오류 표시 (섹션 카드 내부용)
 class _ErrorText extends StatelessWidget {
   final String message;
   const _ErrorText(this.message);
