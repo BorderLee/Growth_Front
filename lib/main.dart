@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'package:medexplain/api/app_config.dart';
 import 'package:medexplain/stt/models.dart';
 import 'package:medexplain/stt/transcript_store.dart';
 import 'package:medexplain/stt/ws_transport.dart';
@@ -46,7 +47,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final AudioRecorder _recorder = AudioRecorder();
-  late final WsTransport ws;
+  late WsTransport ws;
   late final TranscriptStore transcriptStore;
   StreamSubscription<WsConnState>? _wsStateSub;
   StreamSubscription<WsEvent>? _wsEventSub;
@@ -60,52 +61,55 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-
     transcriptStore = TranscriptStore();
-    ws = WsTransport(uri: Uri.parse("ws://10.240.66.72:8000/ws/stt"));
+    ws = WsTransport(uri: Uri.parse("ws://placeholder"));
 
-    ws.connect().then((_) {
-      ws.sendJson({
-        "type": "session.start",
-        "sessionId": "test-session",
-        "audio": {
-          "encoding": "LINEAR16",
-          "sampleRateHz": 16000,
-          "channels": 1,
+    getWsUri().then((uri) {
+      debugPrint('WS URI: $uri');
+      ws = WsTransport(uri: uri);
+
+      _wsStateSub = ws.stateStream.listen((s) {
+        if (!mounted) return;
+        setState(() => connState = s);
+      });
+
+      _wsEventSub = ws.eventStream.listen((e) {
+        final stt = SttEvent.fromWs(e);
+        debugPrint('PARSED STT TEXT: ${stt?.text}');
+        debugPrint('PARSED STT FINAL: ${stt?.isFinal}');
+
+        if (stt != null) {
+          transcriptStore.apply(stt);
+
+          final transcript = transcriptStore.combinedText.trim();
+          debugPrint('COMBINED TEXT: $transcript');
+
+          if (mounted) {
+            setState(() {
+              if (transcript.isNotEmpty) {
+                _completedTranscript = transcript;
+                _statusText = transcript;
+              }
+            });
+          }
+        } else {
+          debugPrint('STT PARSE FAILED');
         }
       });
-    });
 
-    _wsStateSub = ws.stateStream.listen((s) {
-      if (!mounted) return;
-      setState(() => connState = s);
-    });
-
-    _wsEventSub = ws.eventStream.listen((e) {
-      debugPrint('WS EVENT TYPE: ${e.type}');
-      debugPrint('WS EVENT RAW MAP: ${e.raw}');
-      
-      final stt = SttEvent.fromWs(e);
-      debugPrint('PARSED STT TEXT: ${stt?.text}');
-      debugPrint('PARSED STT FINAL: ${stt?.isFinal}');
-      
-      if (stt != null) {
-        transcriptStore.apply(stt);
-        
-        final transcript = transcriptStore.combinedText.trim();
-        debugPrint('COMBINED TEXT: $transcript');
-        
-        if (mounted) {
-          setState(() {
-            if (transcript.isNotEmpty) {
-              _completedTranscript = transcript;
-              _statusText = transcript;
-            }
-          });
-        }
-      } else {
-        debugPrint('STT PARSE FAILED');
-      }
+      ws.connect().then((_) {
+        ws.sendJson({
+          "type": "session.start",
+          "sessionId": "test-session",
+          "audio": {
+            "encoding": "LINEAR16",
+            "sampleRateHz": 16000,
+            "channels": 1,
+          }
+        });
+      });
+    }).catchError((e) {
+      debugPrint('getWsUri 에러: $e');
     });
   }
 
@@ -213,12 +217,70 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  void _showServerSettingDialog() async {
+    final currentIp = await getServerIp();
+    final controller = TextEditingController(text: currentIp);
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('서버 IP 설정'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'IP 주소',
+            hintText: '예: 192.168.0.10',
+          ),
+          keyboardType: TextInputType.number,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await saveServerIp(controller.text.trim());
+              if (!mounted) return;
+              Navigator.pop(ctx);
+              // 새 IP로 재연결
+              ws.close();
+              final uri = await getWsUri();
+              setState(() {
+                ws = WsTransport(uri: uri);
+              });
+              ws.connect().then((_) {
+                ws.sendJson({
+                  "type": "session.start",
+                  "sessionId": "test-session",
+                  "audio": {
+                    "encoding": "LINEAR16",
+                    "sampleRateHz": 16000,
+                    "channels": 1,
+                  }
+                });
+              });
+            },
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: '서버 설정',
+            onPressed: _showServerSettingDialog,  // ← 아래에서 만들 함수
+          ),
           IconButton(
             icon: const Icon(Icons.folder_outlined),
             tooltip: '진료 기록',

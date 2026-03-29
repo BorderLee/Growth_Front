@@ -47,3 +47,16 @@ class SttEvent {
     return SttEvent(isFinal: isFinal, text: text);
   }
 }
+
+class WarningEvent {
+  final String message;
+  WarningEvent({required this.message});
+
+  static WarningEvent? fromWs(WsEvent e) {
+    if (e.type != 'warning') return null;
+    final payload = e.raw['payload'];
+    if (payload is! Map<String, dynamic>) return null;
+    final message = (payload['message'] ?? '').toString();
+    return WarningEvent(message: message);
+  }
+}

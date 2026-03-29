@@ -1,5 +1,25 @@
-// API 서버 base URL 설정
-// - Android 에뮬레이터: http://10.0.2.2:8000
-// - iOS 시뮬레이터 / macOS: http://localhost:8000
-// - 실제 기기 (같은 네트워크): http://<서버 IP>:8000
-const String kApiBaseUrl = 'http://10.240.66.72:8000';
+//포트 연결을 관장하는 코드입니다
+import 'package:shared_preferences/shared_preferences.dart';
+
+const String kDefaultServerIp = '10.240.66.72';
+const int kServerPort = 8000;
+
+Future<String> getServerIp() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('server_ip') ?? kDefaultServerIp;
+}
+
+Future<void> saveServerIp(String ip) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('server_ip', ip);
+}
+
+Future<String> getApiBaseUrl() async {
+  final ip = await getServerIp();
+  return 'http://$ip:$kServerPort';
+}
+
+Future<Uri> getWsUri() async {
+  final ip = await getServerIp();
+  return Uri.parse('ws://$ip:$kServerPort/ws/stt');
+}

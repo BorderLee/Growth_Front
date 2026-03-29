@@ -25,8 +25,8 @@ const _departments = [
 
 class ResultScreen extends StatefulWidget {
   final String transcript;
-
-  const ResultScreen({super.key, required this.transcript});
+  final String? warningMessage;
+  const ResultScreen({super.key, required this.transcript, this.warningMessage});
 
   @override
   State<ResultScreen> createState() => _ResultScreenState();
@@ -44,7 +44,7 @@ class _ResultScreenState extends State<ResultScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchAll();
+    if (widget.warningMessage == null) _fetchAll();
   }
 
   Future<void> _fetchAll() async {
@@ -295,6 +295,28 @@ class _ErrorText extends StatelessWidget {
           child: Text(
             '오류: $message',
             style: const TextStyle(color: Colors.red, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+//음성이 인식되지 않았을 때
+class _WarningText extends StatelessWidget {
+  final String message;
+  const _WarningText(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.mic_off_outlined, color: Colors.orange, size: 18),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            message,
+            style: const TextStyle(color: Colors.orange, fontSize: 13),
           ),
         ),
       ],

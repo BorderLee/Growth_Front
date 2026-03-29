@@ -27,7 +27,7 @@ class ApiService {
   // POST /summary
   Future<SummaryResponse> getSummary(String text) async {
     final response = await _client.post(
-      Uri.parse('$kApiBaseUrl/summary'),
+      Uri.parse('${await getApiBaseUrl()}/summary'),
       headers: _headers,
       body: jsonEncode({'text': text}),
     );
@@ -39,7 +39,7 @@ class ApiService {
   // POST /explain
   Future<ExplainResponse> getExplain(String text) async {
     final response = await _client.post(
-      Uri.parse('$kApiBaseUrl/explain'),
+      Uri.parse('${await getApiBaseUrl()}/explain'),
       headers: _headers,
       body: jsonEncode({'text': text}),
     );
@@ -51,7 +51,7 @@ class ApiService {
   // POST /records
   Future<SaveRecordResponse> saveRecord(SaveRecordRequest req) async {
     final response = await _client.post(
-      Uri.parse('$kApiBaseUrl/records'),
+      Uri.parse('${await getApiBaseUrl()}/records'),
       headers: _headers,
       body: jsonEncode(req.toJson()),
     );
@@ -63,7 +63,7 @@ class ApiService {
   // GET /records
   Future<List<RecordSummary>> getRecords() async {
     final response = await _client.get(
-      Uri.parse('$kApiBaseUrl/records'),
+      Uri.parse('${await getApiBaseUrl()}/records'),
       headers: _headers,
     );
     _checkStatus(response);
@@ -77,7 +77,7 @@ class ApiService {
   // GET /records/{record_id}
   Future<RecordDetail> getRecordDetail(String recordId) async {
     final response = await _client.get(
-      Uri.parse('$kApiBaseUrl/records/$recordId'),
+      Uri.parse('${await getApiBaseUrl()}/records/$recordId'),
       headers: _headers,
     );
     _checkStatus(response);
