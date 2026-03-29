@@ -219,13 +219,19 @@ class _ResultScreenState extends State<ResultScreen> {
             IconButton(
               icon: const Icon(Icons.save_outlined),
               tooltip: '기록 저장',
-              onPressed: (_loadingSummary || _loadingTerms) ? null : _showSaveDialog,
+              onPressed: (widget.warningMessage != null || _loadingSummary || _loadingTerms)
+                  ? null
+                  : _showSaveDialog,
             ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (widget.warningMessage != null) ...[
+            _WarningText(widget.warningMessage!),
+            const SizedBox(height: 16),
+          ],
           SectionCard(
             title: '원문 텍스트',
             child: Text(

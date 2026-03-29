@@ -75,10 +75,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
       _wsEventSub = ws.eventStream.listen((e) {
         final stt = SttEvent.fromWs(e);
-        debugPrint('PARSED STT TEXT: ${stt?.text}');
-        debugPrint('PARSED STT FINAL: ${stt?.isFinal}');
-
         if (stt != null) {
+          debugPrint('PARSED STT TEXT: ${stt.text}');
+          debugPrint('PARSED STT FINAL: ${stt.isFinal}');
           transcriptStore.apply(stt);
 
           final transcript = transcriptStore.combinedText.trim();
@@ -92,9 +91,22 @@ class _MyHomePageState extends State<MyHomePage> {
               }
             });
           }
-        } else {
-          debugPrint('STT PARSE FAILED');
+          return;
         }
+
+        final warning = WarningEvent.fromWs(e);
+        if (warning != null) {
+          debugPrint('WARNING: ${warning.message}');
+          transcriptStore.applyWarning(warning);
+          if (mounted) {
+            setState(() {
+              _statusText = warning.message;
+            });
+          }
+          return;
+        }
+
+        debugPrint('UNHANDLED WS EVENT: ${e.type}');
       });
 
       ws.connect().then((_) {
@@ -193,23 +205,27 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _goToResult() {
-  final text = transcriptStore.combinedText.trim();
+    final text = transcriptStore.combinedText.trim();
+    final warning = transcriptStore.warningMessage;
 
-  if (text.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('아직 STT 결과가 도착하지 않았습니다. 잠시 후 다시 눌러주세요.'),
+    if (text.isEmpty && warning == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('아직 STT 결과가 도착하지 않았습니다. 잠시 후 다시 눌러주세요.'),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResultScreen(
+          transcript: text,
+          warningMessage: warning,
+        ),
       ),
     );
-    return;
   }
-
-  Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => ResultScreen(transcript: text),
-    ),
-  );
-}
 
   void _goToRecords() {
     Navigator.of(context).push(
@@ -312,7 +328,9 @@ class _MyHomePageState extends State<MyHomePage> {
           _buildHeader(),
           const SizedBox(height: 8),
           Expanded(child: _buildTextPanel()),
-          if (transcriptStore.combinedText.trim().isNotEmpty && !_isListening) ...[
+          if (!_isListening &&
+              (transcriptStore.combinedText.trim().isNotEmpty ||
+               transcriptStore.hasWarning)) ...[
             const SizedBox(height: 12),
             _buildResultButton(),
           ],

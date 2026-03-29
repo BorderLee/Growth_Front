@@ -39,6 +39,7 @@ class TranscriptStore extends ChangeNotifier {
   void reset() {
     _finalSegments.clear();
     _interim = '';
+    _warningMessage = null;
     notifyListeners();
   }
 }
