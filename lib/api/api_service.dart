@@ -85,6 +85,15 @@ class ApiService {
         jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>);
   }
 
+  // DELETE /records/{record_id}
+  Future<void> deleteRecord(String recordId) async {
+    final response = await _client.delete(
+      Uri.parse('${await getApiBaseUrl()}/records/$recordId'),
+      headers: _headers,
+    );
+    _checkStatus(response);
+  }
+
   void _checkStatus(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(

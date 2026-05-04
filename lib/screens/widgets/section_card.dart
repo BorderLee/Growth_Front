@@ -5,12 +5,14 @@ import '../../api/api_models.dart';
 class SectionCard extends StatelessWidget {
   final String title;
   final String? subtitle;
+  final Widget? trailing;
   final Widget child;
 
   const SectionCard({
     super.key,
     required this.title,
     this.subtitle,
+    this.trailing,
     required this.child,
   });
 
@@ -24,16 +26,29 @@ class SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(subtitle!,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.outline)),
-            ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle!,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.outline)),
+                      ],
+                    ],
+                  ),
+                ),
+                ?trailing,
+              ],
+            ),
             const SizedBox(height: 12),
             child,
           ],

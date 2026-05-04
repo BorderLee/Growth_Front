@@ -14,6 +14,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   List<RecordSummary>? _records;
   bool _loading = true;
   String? _error;
+  String? _selectedDept;
 
   @override
   void initState() {
@@ -108,22 +109,65 @@ class _RecordsScreenState extends State<RecordsScreen> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _fetchRecords,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(12),
-        itemCount: _records!.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 4),
-        itemBuilder: (_, i) => _RecordTile(
-          record: _records![i],
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  RecordDetailScreen(recordId: _records![i].recordId),
+    final depts = _records!.map((r) => r.department).toSet().toList()..sort();
+    final filtered = _selectedDept == null
+        ? _records!
+        : _records!.where((r) => r.department == _selectedDept).toList();
+
+    return Column(
+      children: [
+        if (depts.length > 1)
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: FilterChip(
+                    label: const Text('전체'),
+                    selected: _selectedDept == null,
+                    onSelected: (_) => setState(() => _selectedDept = null),
+                  ),
+                ),
+                for (final dept in depts)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: FilterChip(
+                      label: Text(dept),
+                      selected: _selectedDept == dept,
+                      onSelected: (_) => setState(() => _selectedDept = dept),
+                    ),
+                  ),
+              ],
             ),
           ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _fetchRecords,
+            child: filtered.isEmpty
+                ? const Center(
+                    child: Text('해당 진료과 기록이 없습니다.',
+                        style: TextStyle(color: Colors.grey)),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 4),
+                    itemBuilder: (_, i) => _RecordTile(
+                      record: filtered[i],
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RecordDetailScreen(recordId: filtered[i].recordId),
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }

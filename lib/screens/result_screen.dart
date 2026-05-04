@@ -41,10 +41,46 @@ class _ResultScreenState extends State<ResultScreen> {
   String? _termsError;
   bool _saving = false;
 
+  bool _editingSummary = false;
+  late List<TextEditingController> _summaryControllers;
+  final _memoController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
+    _summaryControllers = [];
     if (widget.warningMessage == null) _fetchAll();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _summaryControllers) {
+      c.dispose();
+    }
+    _memoController.dispose();
+    super.dispose();
+  }
+
+  void _initSummaryControllers(List<String> items) {
+    for (final c in _summaryControllers) {
+      c.dispose();
+    }
+    _summaryControllers = items.map((s) => TextEditingController(text: s)).toList();
+  }
+
+  void _toggleEditSummary() {
+    if (!_editingSummary && _summary != null) {
+      _initSummaryControllers(_summary!);
+    }
+    if (_editingSummary) {
+      final edited = _summaryControllers.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
+      setState(() {
+        _summary = edited;
+        _editingSummary = false;
+      });
+    } else {
+      setState(() => _editingSummary = true);
+    }
   }
 
   Future<void> _fetchAll() async {
@@ -170,12 +206,16 @@ class _ResultScreenState extends State<ResultScreen> {
 
     setState(() => _saving = true);
     try {
+      final memo = _memoController.text.trim();
+      final summaryToSave = List<String>.from(_summary ?? []);
+      if (memo.isNotEmpty) summaryToSave.add('[메모] $memo');
+
       await ApiService.instance.saveRecord(
         SaveRecordRequest(
           date: _formatDate(selectedDate),
           department: selectedDept,
           cleanText: widget.transcript,
-          summary: _summary ?? [],
+          summary: summaryToSave,
           terms: _terms ?? [],
         ),
       );
@@ -242,7 +282,28 @@ class _ResultScreenState extends State<ResultScreen> {
           const SizedBox(height: 20),
           SectionCard(
             title: '요약',
+            subtitle: _editingSummary ? '내용을 수정한 후 완료를 누르세요.' : null,
+            trailing: _summary != null && !_loadingSummary
+                ? TextButton.icon(
+                    onPressed: _toggleEditSummary,
+                    icon: Icon(_editingSummary ? Icons.check : Icons.edit_outlined, size: 16),
+                    label: Text(_editingSummary ? '완료' : '편집'),
+                  )
+                : null,
             child: _buildSummaryBody(),
+          ),
+          const SizedBox(height: 20),
+          SectionCard(
+            title: '추가 메모',
+            child: TextField(
+              controller: _memoController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: '기억해두고 싶은 내용을 입력하세요...',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.all(12),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
           SectionCard(
@@ -250,6 +311,29 @@ class _ResultScreenState extends State<ResultScreen> {
             subtitle: '용어를 탭하면 설명을 볼 수 있습니다.',
             child: _buildTermsBody(),
           ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.amber),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '본 앱은 의료 정보 보조 도구이며, AI가 제공하는 정보는 참고용으로 정확한 내용은 반드시 담당 의사에게 확인하시기 바랍니다.',
+                    style: TextStyle(fontSize: 12, color: Colors.brown, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -266,6 +350,42 @@ class _ResultScreenState extends State<ResultScreen> {
     if (_summaryError != null) return _ErrorText(_summaryError!);
     if (_summary == null || _summary!.isEmpty) {
       return const Text('요약 결과가 없습니다.');
+    }
+    if (_editingSummary) {
+      return Column(
+        children: [
+          for (int i = 0; i < _summaryControllers.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TextField(
+                controller: _summaryControllers[i],
+                maxLines: null,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.all(10),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.remove_circle_outline, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        _summaryControllers[i].dispose();
+                        _summaryControllers.removeAt(i);
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _summaryControllers.add(TextEditingController());
+              });
+            },
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('항목 추가'),
+          ),
+        ],
+      );
     }
     return BulletList(items: _summary!);
   }

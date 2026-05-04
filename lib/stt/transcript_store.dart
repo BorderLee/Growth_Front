@@ -18,8 +18,17 @@ class TranscriptStore extends ChangeNotifier {
     return '$base $_interim';
   }
 
+  static final _fillerPattern = RegExp(
+    r'\b(음+\.{0,3}|아+\.{0,3}|어+\.{0,3}|그+\.{0,3}|뭐+\.{0,3}|저+\.{0,3}|이제\.{0,3})\b',
+    unicode: true,
+  );
+
+  static String _removeFiller(String text) {
+    return text.replaceAll(_fillerPattern, '').replaceAll(RegExp(r'  +'), ' ').trim();
+  }
+
   void apply(SttEvent e) {
-    final t = e.text.trim();
+    final t = _removeFiller(e.text.trim());
     if (t.isEmpty) return;
 
     if (e.isFinal) {
