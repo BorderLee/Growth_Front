@@ -16,6 +16,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   RecordDetail? _detail;
   bool _loading = true;
   String? _error;
+  bool _deleting = false;
 
   @override
   void initState() {
@@ -47,6 +48,47 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     }
   }
 
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('기록 삭제'),
+        content: const Text('이 진료 기록을 삭제하시겠습니까?\n삭제된 기록은 복구할 수 없습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    try {
+      await ApiService.instance.deleteRecord(widget.recordId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('기록이 삭제되었습니다.')),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('삭제 실패: $e')),
+        );
+        setState(() => _deleting = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,6 +96,25 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         title: Text(_detail != null
             ? '${_detail!.date} · ${_detail!.department}'
             : '상세 기록'),
+        actions: [
+          if (_deleting)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (_detail != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: '기록 삭제',
+              onPressed: _confirmDelete,
+            ),
+        ],
       ),
       body: _buildBody(),
     );
