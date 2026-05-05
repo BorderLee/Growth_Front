@@ -5,14 +5,19 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:medexplain/api/app_config.dart';
 import 'package:medexplain/stt/models.dart';
 import 'package:medexplain/stt/transcript_store.dart';
 import 'package:medexplain/stt/ws_transport.dart';
 import 'screens/result_screen.dart';
 import 'screens/records_screen.dart';
+import 'screens/auth_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(
     ChangeNotifierProvider(
       create: (_) => TranscriptStore(),
@@ -32,7 +37,27 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
       ),
       debugShowCheckedModeBanner: false,
-      home: const MyHomePage(title: 'MedExplain'),
+      home: const AuthGate(),
+    );
+  }
+}
+
+/// 로그인 상태에 따라 AuthScreen 또는 홈 화면을 보여주는 게이트
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      // 스트림 대기 전에 현재 로그인 상태를 즉시 확인
+      initialData: FirebaseAuth.instance.currentUser,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return const MyHomePage(title: 'MedExplain');
+        }
+        return const AuthScreen();
+      },
     );
   }
 }
@@ -295,12 +320,19 @@ class _MyHomePageState extends State<MyHomePage> {
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: '서버 설정',
-            onPressed: _showServerSettingDialog,  // ← 아래에서 만들 함수
+            onPressed: _showServerSettingDialog,
           ),
           IconButton(
             icon: const Icon(Icons.folder_outlined),
             tooltip: '진료 기록',
             onPressed: _goToRecords,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: '로그아웃',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
           ),
         ],
       ),
@@ -327,7 +359,12 @@ class _MyHomePageState extends State<MyHomePage> {
         children: [
           _buildHeader(),
           const SizedBox(height: 8),
-          Expanded(child: _buildTextPanel()),
+          ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.35,
+          ),
+          child: _buildTextPanel(),
+        ),
           if (!_isListening &&
               (transcriptStore.combinedText.trim().isNotEmpty ||
                transcriptStore.hasWarning)) ...[

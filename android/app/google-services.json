@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "816577883646",
+    "project_id": "medexplain-2861d",
+    "storage_bucket": "medexplain-2861d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:816577883646:android:e5bfed5fe561acbc7564af",
+        "android_client_info": {
+          "package_name": "com.example.medexplain"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2fP8e4uEbtp7XxN5dVG3VIQPdcL4Dqcc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
