@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/api_models.dart';
 import '../api/api_service.dart';
 import 'widgets/section_card.dart';
+import 'widgets/question_tab.dart';
 import 'records_screen.dart';
 
 const _departments = [
@@ -240,102 +241,120 @@ class _ResultScreenState extends State<ResultScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('분석 결과'),
-        actions: [
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.save_outlined),
-              tooltip: '기록 저장',
-              onPressed: (widget.warningMessage != null || _loadingSummary || _loadingTerms)
-                  ? null
-                  : _showSaveDialog,
-            ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (widget.warningMessage != null) ...[
-            _WarningText(widget.warningMessage!),
-            const SizedBox(height: 16),
-          ],
-          SectionCard(
-            title: '원문 텍스트',
-            child: Text(
-              widget.transcript.isEmpty ? '(내용 없음)' : widget.transcript,
-              style: const TextStyle(fontSize: 15, height: 1.5),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SectionCard(
-            title: '요약',
-            subtitle: _editingSummary ? '내용을 수정한 후 완료를 누르세요.' : null,
-            trailing: _summary != null && !_loadingSummary
-                ? TextButton.icon(
-                    onPressed: _toggleEditSummary,
-                    icon: Icon(_editingSummary ? Icons.check : Icons.edit_outlined, size: 16),
-                    label: Text(_editingSummary ? '완료' : '편집'),
-                  )
-                : null,
-            child: _buildSummaryBody(),
-          ),
-          const SizedBox(height: 20),
-          SectionCard(
-            title: '추가 메모',
-            child: TextField(
-              controller: _memoController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: '기억해두고 싶은 내용을 입력하세요...',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.all(12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SectionCard(
-            title: '의료 용어',
-            subtitle: '용어를 탭하면 설명을 볼 수 있습니다.',
-            child: _buildTermsBody(),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.shade200),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.amber),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '본 앱은 의료 정보 보조 도구이며, AI가 제공하는 정보는 참고용으로 정확한 내용은 반드시 담당 의사에게 확인하시기 바랍니다.',
-                    style: TextStyle(fontSize: 12, color: Colors.brown, height: 1.4),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('분석 결과'),
+          actions: [
+            if (_saving)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
-              ],
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.save_outlined),
+                tooltip: '기록 저장',
+                onPressed: (widget.warningMessage != null || _loadingSummary || _loadingTerms)
+                    ? null
+                    : _showSaveDialog,
+              ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: '분석 결과'),
+              Tab(text: '질문하기'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildResultTab(),
+            QuestionTab(transcript: widget.transcript),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (widget.warningMessage != null) ...[
+          _WarningText(widget.warningMessage!),
+          const SizedBox(height: 16),
+        ],
+        SectionCard(
+          title: '원문 텍스트',
+          child: Text(
+            widget.transcript.isEmpty ? '(내용 없음)' : widget.transcript,
+            style: const TextStyle(fontSize: 15, height: 1.5),
+          ),
+        ),
+        const SizedBox(height: 20),
+        SectionCard(
+          title: '요약',
+          subtitle: _editingSummary ? '내용을 수정한 후 완료를 누르세요.' : null,
+          trailing: _summary != null && !_loadingSummary
+              ? TextButton.icon(
+                  onPressed: _toggleEditSummary,
+                  icon: Icon(_editingSummary ? Icons.check : Icons.edit_outlined, size: 16),
+                  label: Text(_editingSummary ? '완료' : '편집'),
+                )
+              : null,
+          child: _buildSummaryBody(),
+        ),
+        const SizedBox(height: 20),
+        SectionCard(
+          title: '추가 메모',
+          child: TextField(
+            controller: _memoController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: '기억해두고 싶은 내용을 입력하세요...',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.all(12),
             ),
           ),
-          const SizedBox(height: 8),
-        ],
-      ),
+        ),
+        const SizedBox(height: 20),
+        SectionCard(
+          title: '의료 용어',
+          subtitle: '용어를 탭하면 설명을 볼 수 있습니다.',
+          child: _buildTermsBody(),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.amber.shade200),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.amber),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '본 앱은 의료 정보 보조 도구이며, AI가 제공하는 정보는 참고용으로 정확한 내용은 반드시 담당 의사에게 확인하시기 바랍니다.',
+                  style: TextStyle(fontSize: 12, color: Colors.brown, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 

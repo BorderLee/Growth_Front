@@ -1,3 +1,39 @@
+// POST /question 요청
+class QuestionRequest {
+  final String question;
+  final String context;
+
+  const QuestionRequest({required this.question, required this.context});
+
+  Map<String, dynamic> toJson() => {
+        'question': question,
+        'context': context,
+      };
+}
+
+// POST /question 응답
+class QuestionResponse {
+  final bool canAnswer;
+  final String? answer;
+  final List<String> urgentSymptoms;
+
+  const QuestionResponse({
+    required this.canAnswer,
+    this.answer,
+    required this.urgentSymptoms,
+  });
+
+  factory QuestionResponse.fromJson(Map<String, dynamic> json) {
+    return QuestionResponse(
+      canAnswer: json['can_answer'] as bool,
+      answer: json['answer'] as String?,
+      urgentSymptoms: json['urgent_symptoms'] != null
+          ? List<String>.from(json['urgent_symptoms'] as List)
+          : [],
+    );
+  }
+}
+
 // /summary 응답
 class SummaryResponse {
   final List<String> summary;
