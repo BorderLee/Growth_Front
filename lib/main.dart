@@ -80,8 +80,6 @@ class _MyHomePageState extends State<MyHomePage> {
   WsConnState connState = WsConnState.disconnected;
 
   bool _isListening = false;
-  String _statusText = "버튼을 누르고 녹음을 시작해보세요.";
-  String? _completedTranscript;
 
   @override
   void initState() {
@@ -108,14 +106,7 @@ class _MyHomePageState extends State<MyHomePage> {
           final transcript = transcriptStore.combinedText.trim();
           debugPrint('COMBINED TEXT: $transcript');
 
-          if (mounted) {
-            setState(() {
-              if (transcript.isNotEmpty) {
-                _completedTranscript = transcript;
-                _statusText = transcript;
-              }
-            });
-          }
+          if (mounted && transcript.isNotEmpty) setState(() {});
           return;
         }
 
@@ -123,11 +114,7 @@ class _MyHomePageState extends State<MyHomePage> {
         if (warning != null) {
           debugPrint('WARNING: ${warning.message}');
           transcriptStore.applyWarning(warning);
-          if (mounted) {
-            setState(() {
-              _statusText = warning.message;
-            });
-          }
+          if (mounted) setState(() {});
           return;
         }
 
@@ -170,9 +157,11 @@ class _MyHomePageState extends State<MyHomePage> {
     if (!_isListening) {
       final hasPermission = await _recorder.hasPermission();
       if (!hasPermission) {
-        setState(() {
-          _statusText = "마이크 권한이 필요합니다. 설정에서 권한을 허용해주세요.";
-        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('마이크 권한이 필요합니다. 설정에서 권한을 허용해주세요.')),
+          );
+        }
         return;
       }
 
@@ -188,19 +177,12 @@ class _MyHomePageState extends State<MyHomePage> {
       );
 
       transcriptStore.reset();
-      setState(() {
-        _isListening = true;
-        _completedTranscript = null;
-        _statusText = "녹음 중...";
-      });
+      setState(() => _isListening = true);
     } else {
       final path = await _recorder.stop();
 
       if (path == null) {
-        setState(() {
-          _isListening = false;
-          _statusText = "녹음 저장 경로를 찾을 수 없습니다.";
-        });
+        setState(() => _isListening = false);
         return;
       }
 
@@ -221,11 +203,7 @@ class _MyHomePageState extends State<MyHomePage> {
         debugPrint("AUDIO SENT bytes=${bytes.length}");
       }
 
-      // STT 결과가 transcriptStore에 있으면 사용, 없으면 빈 문자열
-      setState(() {
-        _isListening = false;
-        _statusText = "녹음이 완료되었습니다. STT 결과를 기다리는 중...";
-        });
+      setState(() => _isListening = false);
     }
   }
 
@@ -256,6 +234,11 @@ class _MyHomePageState extends State<MyHomePage> {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const RecordsScreen()),
     );
+  }
+
+  void _resetRecording() {
+    transcriptStore.reset();
+    setState(() {});
   }
 
   void _showServerSettingDialog() async {
@@ -314,103 +297,268 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: Text(widget.title),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset('assets/MedExplain.png', width: 32, height: 32),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              widget.title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: '서버 설정',
-            onPressed: _showServerSettingDialog,
-          ),
-          IconButton(
-            icon: const Icon(Icons.folder_outlined),
+            icon: const Icon(Icons.folder, color: Colors.amber),
             tooltip: '진료 기록',
             onPressed: _goToRecords,
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: '로그아웃',
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'settings') _showServerSettingDialog();
+              if (value == 'logout') FirebaseAuth.instance.signOut();
             },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'settings',
+                child: Row(children: [
+                  Icon(Icons.settings_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('서버 설정'),
+                ]),
+              ),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(children: [
+                  Icon(Icons.logout, size: 18),
+                  SizedBox(width: 8),
+                  Text('로그아웃'),
+                ]),
+              ),
+            ],
           ),
         ],
       ),
-      floatingActionButton: _buildFab(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: _buildBody(),
     );
   }
 
-  Widget _buildFab() {
-    return FloatingActionButton.extended(
-      onPressed: _toggleListening,
-      icon: Icon(_isListening ? Icons.stop : Icons.mic),
-      label: Text(_isListening ? "녹음 종료" : "녹음 시작"),
-      backgroundColor: _isListening ? Colors.red : Colors.green,
+  Widget _buildBody() {
+    final hasResult = !_isListening &&
+        (transcriptStore.combinedText.trim().isNotEmpty ||
+            transcriptStore.hasWarning);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+          child: _buildConnectionStatus(),
+        ),
+        Expanded(
+          child: (_isListening || hasResult)
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  child: _buildTextCard(),
+                )
+              : _buildEmptyState(),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+          child: _buildBottomButtons(),
+        ),
+      ],
     );
   }
 
-  Widget _buildBody() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-      child: Column(
+  Widget _buildConnectionStatus() {
+    final (color, label) = switch (connState) {
+      WsConnState.connected => (Colors.green, '서버 연결됨'),
+      WsConnState.connecting || WsConnState.reconnecting =>
+        (Colors.orange, '연결 중...'),
+      _ => (Colors.red, '서버 연결 안됨'),
+    };
+
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+              fontSize: 13, color: color, fontWeight: FontWeight.w500),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.medical_services_outlined,
+                size: 56,
+                color: Colors.blue.shade400,
+              ),
+            ),
+            const SizedBox(height: 28),
+            const Text(
+              '진료실에서 의사 설명을\n녹음해 보세요',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.bold, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'AI가 핵심 내용을 요약하고\n어려운 용어를 쉽게 설명해 드려요',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 14, color: Colors.grey.shade500, height: 1.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextCard() {
+    final text = transcriptStore.combinedText.trim();
+    final warning = transcriptStore.warningMessage;
+    final displayText = text.isNotEmpty ? text : (warning ?? '');
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.mic_outlined, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  _isListening ? '녹음 중...' : '인식된 텍스트',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                if (_isListening) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                        color: Colors.red, shape: BoxShape.circle),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.35,
+              ),
+              child: SingleChildScrollView(
+                child: Text(
+                  displayText.isEmpty ? '음성 인식 대기 중...' : displayText,
+                  style: const TextStyle(fontSize: 15, height: 1.6),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomButtons() {
+    final hasResult = !_isListening &&
+        (transcriptStore.combinedText.trim().isNotEmpty ||
+            transcriptStore.hasWarning);
+
+    if (_isListening) {
+      return OutlinedButton.icon(
+        onPressed: _toggleListening,
+        icon: const Icon(Icons.stop, color: Colors.red),
+        label: const Text('녹음 종료',
+            style: TextStyle(color: Colors.red, fontSize: 16)),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.red),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      );
+    }
+
+    if (hasResult) {
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildHeader(),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.35,
+          FilledButton.icon(
+            onPressed: _goToResult,
+            icon: const Icon(Icons.auto_awesome),
+            label: const Text('AI 분석 결과 보기',
+                style: TextStyle(fontSize: 16)),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
           ),
-          child: _buildTextPanel(),
-        ),
-          if (!_isListening &&
-              (transcriptStore.combinedText.trim().isNotEmpty ||
-               transcriptStore.hasWarning)) ...[
-            const SizedBox(height: 12),
-            _buildResultButton(),
-          ],
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: _resetRecording,
+            icon: const Icon(Icons.mic),
+            label: const Text('다시 녹음', style: TextStyle(fontSize: 16)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
         ],
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildHeader() {
-    return const Text(
-      "의사 설명 텍스트",
-      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-    );
-  }
-
-  Widget _buildTextPanel() {
-    final displayText = _isListening
-        ? ("녹음 중...\n\n${transcriptStore.combinedText}")
-        : _statusText;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: SingleChildScrollView(
-        child: Text(
-          displayText.isEmpty ? "대기 중..." : displayText,
-          style: const TextStyle(fontSize: 16),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResultButton() {
     return ElevatedButton.icon(
-      onPressed: _goToResult,
-      icon: const Icon(Icons.analytics_outlined),
-      label: const Text("결과 보기 (요약 / 용어 / 저장)"),
+      onPressed: _toggleListening,
+      icon: const Icon(Icons.mic),
+      label: const Text('녹음 시작', style: TextStyle(fontSize: 16)),
       style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }

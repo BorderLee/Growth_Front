@@ -36,6 +36,18 @@ class ApiService {
         jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>);
   }
 
+  // POST /question
+  Future<QuestionResponse> askQuestion(String question, String context) async {
+    final response = await _client.post(
+      Uri.parse('${await getApiBaseUrl()}/question'),
+      headers: _headers,
+      body: jsonEncode({'question': question, 'context': context}),
+    );
+    _checkStatus(response);
+    return QuestionResponse.fromJson(
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>);
+  }
+
   // POST /explain
   Future<ExplainResponse> getExplain(String text) async {
     final response = await _client.post(
