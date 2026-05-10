@@ -19,15 +19,14 @@ class SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Column(
@@ -49,7 +48,7 @@ class SectionCard extends StatelessWidget {
                 ?trailing,
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             child,
           ],
         ),
@@ -105,6 +104,130 @@ class BulletList extends StatelessWidget {
   }
 }
 
+/// 텍스트 배지 (진료과, AI 추천 등 레이블 표시용)
+class AppBadge extends StatelessWidget {
+  final String label;
+  final Color backgroundColor;
+  final Color textColor;
+  final double fontSize;
+  final double borderRadius;
+
+  const AppBadge({
+    super.key,
+    required this.label,
+    required this.backgroundColor,
+    required this.textColor,
+    this.fontSize = 12,
+    this.borderRadius = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: fontSize,
+          color: textColor,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+/// 전체 화면 로딩 상태
+class ScreenLoading extends StatelessWidget {
+  const ScreenLoading({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
+/// 전체 화면 에러 상태
+class ScreenError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const ScreenError({super.key, required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 12),
+            Text('불러오기 실패', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// SectionCard 목록을 감싸는 공통 ListView
+class SectionListView extends StatelessWidget {
+  final List<Widget> children;
+  final double spacing;
+
+  const SectionListView({
+    super.key,
+    required this.children,
+    this.spacing = 5,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      itemCount: children.length,
+      separatorBuilder: (_, __) => SizedBox(height: spacing),
+      itemBuilder: (_, i) => children[i],
+    );
+  }
+}
+
+/// 분석 결과 / 질문하기 공통 TabBar
+const kAnalysisTabBar = TabBar(
+  tabs: [Tab(text: '분석 결과'), Tab(text: '질문하기')],
+);
+
+/// '의료 용어' SectionCard — 타이틀·부제목 고정, 내용만 주입
+class MedTermsSectionCard extends StatelessWidget {
+  final Widget child;
+  const MedTermsSectionCard({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) => SectionCard(
+        title: '의료 용어',
+        subtitle: '용어를 탭하면 설명을 볼 수 있습니다.',
+        child: child,
+      );
+}
+
 /// 의료 용어를 탭 가능한 칩으로 표시 (탭 시 showTermDialog 호출)
 class TermChipList extends StatelessWidget {
   final List<MedTerm> terms;
@@ -120,8 +243,7 @@ class TermChipList extends StatelessWidget {
           .map((t) => ActionChip(
                 label: Text(t.term),
                 onPressed: () => showTermDialog(context, t),
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondaryContainer,
+                backgroundColor: Colors.blue[50],
                 labelStyle: TextStyle(
                   color:
                       Theme.of(context).colorScheme.onSecondaryContainer,

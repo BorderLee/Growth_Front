@@ -6,28 +6,28 @@ import 'widgets/question_tab.dart';
 import 'records_screen.dart';
 
 const _departments = [
-  '내과',
-  '외과',
-  '소화기내과',
-  '심장내과',
-  '정형외과',
-  '신경외과',
-  '산부인과',
-  '소아청소년과',
-  '피부과',
-  '안과',
-  '이비인후과',
-  '비뇨기과',
-  '정신건강의학과',
-  '가정의학과',
-  '응급의학과',
-  '기타',
+  '내과', '정형외과', '피부과', '안과', '이비인후과',
+  '신경과', '외과', '산부인과', '소아청소년과', '정신건강의학과',
+  '비뇨기과', '가정의학과', '응급의학과', '기타',
 ];
 
+String _fmtDate(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+// ─────────────────────────────────────────
 class ResultScreen extends StatefulWidget {
   final String transcript;
   final String? warningMessage;
-  const ResultScreen({super.key, required this.transcript, this.warningMessage});
+  final List<String>? initialSummary;
+  final List<MedTerm>? initialTerms;
+
+  const ResultScreen({
+    super.key,
+    required this.transcript,
+    this.warningMessage,
+    this.initialSummary,
+    this.initialTerms,
+  });
 
   @override
   State<ResultScreen> createState() => _ResultScreenState();
@@ -42,6 +42,7 @@ class _ResultScreenState extends State<ResultScreen> {
   String? _termsError;
   bool _saving = false;
 
+  bool _transcriptExpanded = false;
   bool _editingSummary = false;
   late List<TextEditingController> _summaryControllers;
   final _memoController = TextEditingController();
@@ -50,161 +51,77 @@ class _ResultScreenState extends State<ResultScreen> {
   void initState() {
     super.initState();
     _summaryControllers = [];
-    if (widget.warningMessage == null) _fetchAll();
+
+    if (widget.initialSummary != null) {
+      _summary = List.from(widget.initialSummary!);
+      _loadingSummary = false;
+    }
+    if (widget.initialTerms != null) {
+      _terms = List.from(widget.initialTerms!);
+      _loadingTerms = false;
+    }
+
+    if (widget.warningMessage == null) {
+      if (_summary == null) _fetchSummary();
+      if (_terms == null) _fetchTerms();
+    }
   }
 
   @override
   void dispose() {
-    for (final c in _summaryControllers) {
-      c.dispose();
-    }
+    for (final c in _summaryControllers) c.dispose();
     _memoController.dispose();
     super.dispose();
   }
 
   void _initSummaryControllers(List<String> items) {
-    for (final c in _summaryControllers) {
-      c.dispose();
-    }
+    for (final c in _summaryControllers) c.dispose();
     _summaryControllers = items.map((s) => TextEditingController(text: s)).toList();
   }
 
   void _toggleEditSummary() {
-    if (!_editingSummary && _summary != null) {
-      _initSummaryControllers(_summary!);
-    }
+    if (!_editingSummary && _summary != null) _initSummaryControllers(_summary!);
     if (_editingSummary) {
-      final edited = _summaryControllers.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
-      setState(() {
-        _summary = edited;
-        _editingSummary = false;
-      });
+      final edited =
+          _summaryControllers.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
+      setState(() { _summary = edited; _editingSummary = false; });
     } else {
       setState(() => _editingSummary = true);
     }
   }
 
-  Future<void> _fetchAll() async {
-    await Future.wait([_fetchSummary(), _fetchTerms()]);
-  }
-
   Future<void> _fetchSummary() async {
     try {
       final res = await ApiService.instance.getSummary(widget.transcript);
-      if (mounted) {
-        setState(() {
-          _summary = res.summary;
-          _loadingSummary = false;
-        });
-      }
+      if (mounted) setState(() { _summary = res.summary; _loadingSummary = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _summaryError = e.toString();
-          _loadingSummary = false;
-        });
-      }
+      if (mounted) setState(() { _summaryError = e.toString(); _loadingSummary = false; });
     }
   }
 
   Future<void> _fetchTerms() async {
     try {
       final res = await ApiService.instance.getExplain(widget.transcript);
-      if (mounted) {
-        setState(() {
-          _terms = res.terms;
-          _loadingTerms = false;
-        });
-      }
+      if (mounted) setState(() { _terms = res.terms; _loadingTerms = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _termsError = e.toString();
-          _loadingTerms = false;
-        });
-      }
+      if (mounted) setState(() { _termsError = e.toString(); _loadingTerms = false; });
     }
   }
 
-  String _formatDate(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-
-  Future<void> _showSaveDialog() async {
-    String selectedDept = _departments.first;
-    DateTime selectedDate = DateTime.now();
-
-    final confirmed = await showDialog<bool>(
+  Future<void> _showSaveBottomSheet() async {
+    final result = await showModalBottomSheet<({String dept, DateTime date})>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('진료 기록 저장'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('진료 날짜',
-                  style: TextStyle(fontSize: 13, color: Colors.grey)),
-              const SizedBox(height: 6),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.calendar_today_outlined, size: 16),
-                label: Text(_formatDate(selectedDate)),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  alignment: Alignment.centerLeft,
-                ),
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: ctx,
-                    initialDate: selectedDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
-                    helpText: '진료 날짜 선택',
-                    confirmText: '확인',
-                    cancelText: '취소',
-                  );
-                  if (picked != null) {
-                    setDialogState(() => selectedDate = picked);
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-              const Text('진료과',
-                  style: TextStyle(fontSize: 13, color: Colors.grey)),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: selectedDept,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                ),
-                items: _departments
-                    .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setDialogState(() => selectedDept = v);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('취소'),
-            ),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              icon: const Icon(Icons.save_outlined, size: 18),
-              label: const Text('저장하기'),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (_) => _DepartmentPickerSheet(transcript: widget.transcript),
     );
+    if (result == null || !mounted) return;
+    await _doSave(result.dept, result.date);
+  }
 
-    if (confirmed != true || !mounted) return;
-
+  Future<void> _doSave(String department, DateTime date) async {
     setState(() => _saving = true);
     try {
       final memo = _memoController.text.trim();
@@ -213,8 +130,8 @@ class _ResultScreenState extends State<ResultScreen> {
 
       await ApiService.instance.saveRecord(
         SaveRecordRequest(
-          date: _formatDate(selectedDate),
-          department: selectedDept,
+          date: _fmtDate(date),
+          department: department,
           cleanText: widget.transcript,
           summary: summaryToSave,
           terms: _terms ?? [],
@@ -230,9 +147,8 @@ class _ResultScreenState extends State<ResultScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장 실패: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('저장 실패: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -241,43 +157,53 @@ class _ResultScreenState extends State<ResultScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canSave = widget.warningMessage == null &&
+        !_loadingSummary &&
+        !_loadingTerms &&
+        !_saving;
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        backgroundColor: Colors.white,
         appBar: AppBar(
+          backgroundColor: Colors.blue[100],
           title: const Text('분석 결과'),
-          actions: [
-            if (_saving)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.save_outlined),
-                tooltip: '기록 저장',
-                onPressed: (widget.warningMessage != null || _loadingSummary || _loadingTerms)
-                    ? null
-                    : _showSaveDialog,
-              ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: '분석 결과'),
-              Tab(text: '질문하기'),
-            ],
-          ),
+          bottom: kAnalysisTabBar,
         ),
-        body: TabBarView(
+        body: Column(
           children: [
-            _buildResultTab(),
-            QuestionTab(transcript: widget.transcript),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildResultTab(),
+                  QuestionTab(transcript: widget.transcript),
+                ],
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: _saving
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    : FilledButton.icon(
+                        onPressed: canSave ? _showSaveBottomSheet : null,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('저장하기',
+                            style: TextStyle(fontSize: 16)),
+                        style: FilledButton.styleFrom(
+                          backgroundColor:Colors.blue[900],
+                          minimumSize: const Size(double.infinity, 52),
+                        ),
+                      ),
+              ),
+            ),
           ],
         ),
       ),
@@ -285,34 +211,56 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   Widget _buildResultTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return SectionListView(
       children: [
         if (widget.warningMessage != null) ...[
-          _WarningText(widget.warningMessage!),
+          _ErrorText(widget.warningMessage!, icon: Icons.mic_off_outlined, color: Colors.orange),
           const SizedBox(height: 16),
         ],
         SectionCard(
           title: '원문 텍스트',
+          trailing: TextButton.icon(
+            onPressed: () =>
+                setState(() => _transcriptExpanded = !_transcriptExpanded),
+            icon: Icon(
+              _transcriptExpanded ? Icons.expand_less : Icons.expand_more,
+              size: 16,
+            ),
+            label: Text(_transcriptExpanded ? '줄이기' : '펼치기'),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
           child: Text(
             widget.transcript.isEmpty ? '(내용 없음)' : widget.transcript,
             style: const TextStyle(fontSize: 15, height: 1.5),
+            maxLines: _transcriptExpanded ? null : 2,
+            overflow: _transcriptExpanded
+                ? TextOverflow.visible
+                : TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(height: 20),
         SectionCard(
           title: '요약',
           subtitle: _editingSummary ? '내용을 수정한 후 완료를 누르세요.' : null,
           trailing: _summary != null && !_loadingSummary
               ? TextButton.icon(
                   onPressed: _toggleEditSummary,
-                  icon: Icon(_editingSummary ? Icons.check : Icons.edit_outlined, size: 16),
+                  icon: Icon(
+                      _editingSummary ? Icons.check : Icons.edit_outlined,
+                      size: 16),
                   label: Text(_editingSummary ? '완료' : '편집'),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 )
               : null,
           child: _buildSummaryBody(),
         ),
-        const SizedBox(height: 20),
         SectionCard(
           title: '추가 메모',
           child: TextField(
@@ -320,18 +268,10 @@ class _ResultScreenState extends State<ResultScreen> {
             maxLines: 3,
             decoration: const InputDecoration(
               hintText: '기억해두고 싶은 내용을 입력하세요...',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.all(12),
             ),
           ),
         ),
-        const SizedBox(height: 20),
-        SectionCard(
-          title: '의료 용어',
-          subtitle: '용어를 탭하면 설명을 볼 수 있습니다.',
-          child: _buildTermsBody(),
-        ),
-        const SizedBox(height: 20),
+        MedTermsSectionCard(child: _buildTermsBody()),
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -347,7 +287,8 @@ class _ResultScreenState extends State<ResultScreen> {
               Expanded(
                 child: Text(
                   '본 앱은 의료 정보 보조 도구이며, AI가 제공하는 정보는 참고용으로 정확한 내용은 반드시 담당 의사에게 확인하시기 바랍니다.',
-                  style: TextStyle(fontSize: 12, color: Colors.brown, height: 1.4),
+                  style:
+                      TextStyle(fontSize: 12, color: Colors.brown, height: 1.4),
                 ),
               ),
             ],
@@ -362,11 +303,10 @@ class _ResultScreenState extends State<ResultScreen> {
     if (_loadingSummary) {
       return const Center(
           child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: CircularProgressIndicator(),
-      ));
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: CircularProgressIndicator()));
     }
-    if (_summaryError != null) return _ErrorText(_summaryError!);
+    if (_summaryError != null) return _ErrorText('오류: $_summaryError');
     if (_summary == null || _summary!.isEmpty) {
       return const Text('요약 결과가 없습니다.');
     }
@@ -395,11 +335,8 @@ class _ResultScreenState extends State<ResultScreen> {
               ),
             ),
           TextButton.icon(
-            onPressed: () {
-              setState(() {
-                _summaryControllers.add(TextEditingController());
-              });
-            },
+            onPressed: () =>
+                setState(() => _summaryControllers.add(TextEditingController())),
             icon: const Icon(Icons.add, size: 16),
             label: const Text('항목 추가'),
           ),
@@ -413,11 +350,10 @@ class _ResultScreenState extends State<ResultScreen> {
     if (_loadingTerms) {
       return const Center(
           child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: CircularProgressIndicator(),
-      ));
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: CircularProgressIndicator()));
     }
-    if (_termsError != null) return _ErrorText(_termsError!);
+    if (_termsError != null) return _ErrorText('오류: $_termsError');
     if (_terms == null || _terms!.isEmpty) {
       return const Text('추출된 의료 용어가 없습니다.');
     }
@@ -425,44 +361,194 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 }
 
-/// 인라인 오류 표시 (섹션 카드 내부용)
-class _ErrorText extends StatelessWidget {
-  final String message;
-  const _ErrorText(this.message);
+// ─── 진료과 선택 바텀 시트 ────────────────────────────────
+class _DepartmentPickerSheet extends StatefulWidget {
+  final String transcript;
+  const _DepartmentPickerSheet({required this.transcript});
+
+  @override
+  State<_DepartmentPickerSheet> createState() => _DepartmentPickerSheetState();
+}
+
+class _DepartmentPickerSheetState extends State<_DepartmentPickerSheet> {
+  String _selectedDept = _departments.first;
+  String? _aiDept;
+  DateTime _selectedDate = DateTime.now();
+  bool _loadingDept = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAiDepartment();
+  }
+
+  Future<void> _fetchAiDepartment() async {
+    try {
+      final res = await ApiService.instance.getDepartment(widget.transcript);
+      if (mounted) {
+        setState(() {
+          _aiDept = res.department;
+          // AI 추천값이 목록에 있으면 기본 선택
+          if (_departments.contains(res.department)) {
+            _selectedDept = res.department;
+          }
+          _loadingDept = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingDept = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Icon(Icons.error_outline, color: Colors.red, size: 18),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            '오류: $message',
-            style: const TextStyle(color: Colors.red, fontSize: 13),
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 12, 20, bottomPad + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 드래그 핸들
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          const Text('진료 기록 저장',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+
+          // ── 날짜 ──────────────────────
+          const Text('진료 날짜',
+              style: TextStyle(fontSize: 13, color: Colors.grey)),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.calendar_today_outlined, size: 16),
+            label: Text(_fmtDate(_selectedDate)),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 44),
+              alignment: Alignment.centerLeft,
+            ),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDate,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+                helpText: '진료 날짜 선택',
+                confirmText: '확인',
+                cancelText: '취소',
+              );
+              if (picked != null && mounted) {
+                setState(() => _selectedDate = picked);
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+
+          // ── 진료과 ────────────────────
+          Row(
+            children: [
+              const Text('진료과',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(width: 8),
+              if (_loadingDept)
+                const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+              else if (_aiDept != null)
+                AppBadge(
+                  label: 'AI 추천',
+                  backgroundColor: Colors.blue.shade50,
+                  textColor: Colors.blue.shade700,
+                  fontSize: 10,
+                  borderRadius: 4,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _departments.map((dept) {
+              final isSelected = dept == _selectedDept;
+              final isAi = dept == _aiDept;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedDept = dept),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                    border: isAi && !isSelected
+                        ? Border.all(
+                            color: Theme.of(context).colorScheme.primary,
+                            width: 1.5)
+                        : null,
+                  ),
+                  child: Text(
+                    dept,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isSelected ? Colors.white : Colors.black87,
+                      fontWeight:
+                          isAi ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 저장 버튼 ─────────────────
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop((dept: _selectedDept, date: _selectedDate)),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(double.infinity, 52),
+            ),
+            child: const Text('저장하기', style: TextStyle(fontSize: 16)),
+          ),
+        ],
+      ),
     );
   }
 }
 
-//음성이 인식되지 않았을 때
-class _WarningText extends StatelessWidget {
+// ─── 공통 위젯 ───────────────────────────────────────────
+class _ErrorText extends StatelessWidget {
   final String message;
-  const _WarningText(this.message);
+  final IconData icon;
+  final Color color;
+
+  const _ErrorText(
+    this.message, {
+    this.icon = Icons.error_outline,
+    this.color = Colors.red,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.mic_off_outlined, color: Colors.orange, size: 18),
+        Icon(icon, color: color, size: 18),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(
-            message,
-            style: const TextStyle(color: Colors.orange, fontSize: 13),
-          ),
+          child: Text(message, style: TextStyle(color: color, fontSize: 13)),
         ),
       ],
     );

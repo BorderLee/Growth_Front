@@ -19,10 +19,10 @@ class ApiService {
 
   final _client = http.Client();
 
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Accept': 'application/json',
-      };
+  static const Map<String, String> _headers = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Accept': 'application/json',
+  };
 
   // POST /summary
   Future<SummaryResponse> getSummary(String text) async {
@@ -32,8 +32,18 @@ class ApiService {
       body: jsonEncode({'text': text}),
     );
     _checkStatus(response);
-    return SummaryResponse.fromJson(
-        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>);
+    return SummaryResponse.fromJson(_decodeBody(response));
+  }
+
+  // POST /department
+  Future<DepartmentResponse> getDepartment(String text) async {
+    final response = await _client.post(
+      Uri.parse('${await getApiBaseUrl()}/department'),
+      headers: _headers,
+      body: jsonEncode({'text': text}),
+    );
+    _checkStatus(response);
+    return DepartmentResponse.fromJson(_decodeBody(response));
   }
 
   // POST /question
@@ -44,8 +54,7 @@ class ApiService {
       body: jsonEncode({'question': question, 'context': context}),
     );
     _checkStatus(response);
-    return QuestionResponse.fromJson(
-        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>);
+    return QuestionResponse.fromJson(_decodeBody(response));
   }
 
   // POST /explain
@@ -56,8 +65,7 @@ class ApiService {
       body: jsonEncode({'text': text}),
     );
     _checkStatus(response);
-    return ExplainResponse.fromJson(
-        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>);
+    return ExplainResponse.fromJson(_decodeBody(response));
   }
 
   // POST /records
@@ -68,8 +76,7 @@ class ApiService {
       body: jsonEncode(req.toJson()),
     );
     _checkStatus(response);
-    return SaveRecordResponse.fromJson(
-        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>);
+    return SaveRecordResponse.fromJson(_decodeBody(response));
   }
 
   // GET /records
@@ -79,8 +86,7 @@ class ApiService {
       headers: _headers,
     );
     _checkStatus(response);
-    final json =
-        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    final json = _decodeBody(response);
     return (json['records'] as List)
         .map((e) => RecordSummary.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -93,8 +99,7 @@ class ApiService {
       headers: _headers,
     );
     _checkStatus(response);
-    return RecordDetail.fromJson(
-        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>);
+    return RecordDetail.fromJson(_decodeBody(response));
   }
 
   // DELETE /records/{record_id}
@@ -105,6 +110,9 @@ class ApiService {
     );
     _checkStatus(response);
   }
+
+  Map<String, dynamic> _decodeBody(http.Response response) =>
+      jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
 
   void _checkStatus(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'models.dart';
 
@@ -10,6 +12,9 @@ class WsTransport {
   final Uri uri;
   WebSocketChannel? _ch;
   StreamSubscription? _sub;
+  Timer? _retryTimer;
+  int _retryCount = 0;
+  bool _closed = false;
 
   final _stateCtrl = StreamController<WsConnState>.broadcast();
   final _eventCtrl = StreamController<WsEvent>.broadcast();
@@ -23,11 +28,13 @@ class WsTransport {
   WsTransport({required this.uri});
 
   Future<void> connect({bool reconnecting = false}) async {
-    print("Connecting to: $uri");
+    if (_closed) return;
+    debugPrint('[WS] connecting to: $uri');
     _setState(reconnecting ? WsConnState.reconnecting : WsConnState.connecting);
 
     try {
       _ch = WebSocketChannel.connect(uri);
+      _retryCount = 0;
       _setState(WsConnState.connected);
 
       _sub = _ch!.stream.listen(
@@ -36,40 +43,53 @@ class WsTransport {
           final ev = WsEvent.tryParse(s);
           if (ev != null) _eventCtrl.add(ev);
         },
-        onError: (_) => _handleClosed(),
-        onDone: () => _handleClosed(),
+        onError: (_) => _onDisconnected(),
+        onDone: () => _onDisconnected(),
         cancelOnError: true,
       );
     } catch (ex) {
-      _handleClosed();
-      print('[WS] connect failed');
-      print(ex);
-      return;
+      debugPrint('[WS] connect failed: $ex');
+      _onDisconnected();
     }
   }
 
   void sendJson(Map<String, dynamic> msg) {
-    final ch = _ch;
-    if (ch == null) return;
     if (_state != WsConnState.connected) return;
-    ch.sink.add(json.encode(msg));
+    _ch?.sink.add(json.encode(msg));
   }
 
-  void _handleClosed() {
-    _setState(WsConnState.disconnected);
+  void _onDisconnected() {
     _sub?.cancel();
     _sub = null;
     _ch = null;
+    _setState(WsConnState.disconnected);
+    if (!_closed) _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    final delaySecs = math.min(2 << _retryCount, 30); // 2→4→8→16→30s
+    _retryCount++;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(
+      Duration(seconds: delaySecs),
+      () => connect(reconnecting: true),
+    );
+    debugPrint('[WS] retry in ${delaySecs}s (attempt $_retryCount)');
   }
 
   Future<void> close() async {
-    _handleClosed();
+    _closed = true;
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _sub?.cancel();
+    _sub = null;
+    _ch = null;
     await _stateCtrl.close();
     await _eventCtrl.close();
   }
 
   void _setState(WsConnState s) {
     _state = s;
-    _stateCtrl.add(s);
+    if (!_stateCtrl.isClosed) _stateCtrl.add(s);
   }
 }

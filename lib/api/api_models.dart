@@ -1,3 +1,11 @@
+// POST /department 응답
+class DepartmentResponse {
+  final String department;
+  const DepartmentResponse({required this.department});
+  factory DepartmentResponse.fromJson(Map<String, dynamic> json) =>
+      DepartmentResponse(department: json['department'] as String);
+}
+
 // POST /question 요청
 class QuestionRequest {
   final String question;

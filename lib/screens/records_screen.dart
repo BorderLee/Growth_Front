@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/api_models.dart';
 import '../api/api_service.dart';
 import 'record_detail_screen.dart';
+import 'widgets/section_card.dart';
 
 class RecordsScreen extends StatefulWidget {
   const RecordsScreen({super.key});
@@ -63,37 +64,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
   }
 
   Widget _buildBody() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 12),
-              Text('불러오기 실패', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _fetchRecords,
-                icon: const Icon(Icons.refresh),
-                label: const Text('다시 시도'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    if (_loading) return const ScreenLoading();
+    if (_error != null) return ScreenError(message: _error!, onRetry: _fetchRecords);
 
     if (_records == null || _records!.isEmpty) {
       return const Center(
@@ -215,25 +187,10 @@ class _RecordTile extends StatelessWidget {
                               fontSize: 13, color: Colors.grey),
                         ),
                         const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .secondaryContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            record.department,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSecondaryContainer,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                        AppBadge(
+                          label: record.department,
+                          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                          textColor: Theme.of(context).colorScheme.onSecondaryContainer,
                         ),
                       ],
                     ),

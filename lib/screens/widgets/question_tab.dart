@@ -127,19 +127,14 @@ class _QuestionTabState extends State<QuestionTab> {
 
     return Stack(
       children: [
-        ListView(
-          padding: const EdgeInsets.all(16),
+        SectionListView(
           children: [
             _buildQuestionInput(),
-            const SizedBox(height: 16),
             _buildAiAnswerSection(),
-            const SizedBox(height: 16),
             _buildNextVisitSection(),
-            const SizedBox(height: 16),
             _buildUrgentSection(),
-            const SizedBox(height: 16),
             _buildDisclaimer(),
-            const SizedBox(height: 80),
+            const SizedBox(height: 64),
           ],
         ),
         if (showSendToDoctor)
