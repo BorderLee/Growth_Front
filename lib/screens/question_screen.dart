@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../api/api_models.dart';
-import '../../api/api_service.dart';
-import 'section_card.dart';
+import '../api/api_models.dart';
+import '../api/api_service.dart';
+import 'widgets/section_card.dart';
 
 class _NextVisitItem {
   String text;
@@ -70,6 +70,16 @@ class _QuestionTabState extends State<QuestionTab> {
     try {
       final res = await ApiService.instance.askQuestion(question, widget.transcript);
       if (mounted) setState(() { _response = res; _loading = false; });
+
+      // 답변 결과를 questions.json에 저장 (fire-and-forget)
+      ApiService.instance.saveQuestion(SaveQuestionRequest(
+        rawText: question,
+        generalInfo: res.canAnswer && res.answer != null
+            ? [GeneralInfoItem(question: question, answer: res.answer!)]
+            : [],
+        askDoctor: res.canAnswer ? [] : [question],
+        caution: res.urgentSymptoms,
+      ));
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);

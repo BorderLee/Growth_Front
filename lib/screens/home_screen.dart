@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:medexplain/api/app_config.dart';
 import 'package:medexplain/controllers/recording_controller.dart';
 import 'package:medexplain/stt/ws_transport.dart';
-import 'records_screen.dart';
+import 'list_screen.dart';
 import 'result_screen.dart';
 
 class HomeScreen extends StatefulWidget {

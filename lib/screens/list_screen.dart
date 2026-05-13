@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../api/api_models.dart';
 import '../api/api_service.dart';
-import 'record_detail_screen.dart';
+import 'detail_screen.dart';
 import 'widgets/section_card.dart';
+//녹음 기록 조회 창
 
 class RecordsScreen extends StatefulWidget {
   const RecordsScreen({super.key});

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/api_models.dart';
 import '../api/api_service.dart';
 import 'widgets/section_card.dart';
-import 'widgets/question_tab.dart';
+import 'question_screen.dart';
 import 'result_screen.dart';
 
 class RecordDetailScreen extends StatefulWidget {

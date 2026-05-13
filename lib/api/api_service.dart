@@ -102,6 +102,16 @@ class ApiService {
     return RecordDetail.fromJson(_decodeBody(response));
   }
 
+  // POST /questions
+  Future<void> saveQuestion(SaveQuestionRequest req) async {
+    final response = await _client.post(
+      Uri.parse('${await getApiBaseUrl()}/questions'),
+      headers: _headers,
+      body: jsonEncode(req.toJson()),
+    );
+    _checkStatus(response);
+  }
+
   // DELETE /records/{record_id}
   Future<void> deleteRecord(String recordId) async {
     final response = await _client.delete(

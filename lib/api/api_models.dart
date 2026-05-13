@@ -154,6 +154,39 @@ class RecordSummary {
   }
 }
 
+// POST /questions 요청용 보조 모델
+class GeneralInfoItem {
+  final String question;
+  final String answer;
+  const GeneralInfoItem({required this.question, required this.answer});
+  Map<String, dynamic> toJson() => {'question': question, 'answer': answer};
+}
+
+// POST /questions 요청
+class SaveQuestionRequest {
+  final String rawText;
+  final List<GeneralInfoItem> generalInfo;
+  final List<String> askDoctor;
+  final List<String> caution;
+  final String? recordId;
+
+  const SaveQuestionRequest({
+    required this.rawText,
+    required this.generalInfo,
+    required this.askDoctor,
+    required this.caution,
+    this.recordId,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'raw_text': rawText,
+        'general_info': generalInfo.map((i) => i.toJson()).toList(),
+        'ask_doctor': askDoctor,
+        'caution': caution,
+        if (recordId != null) 'record_id': recordId,
+      };
+}
+
 // GET /records/{record_id} 응답 (상세)
 class RecordDetail {
   final String recordId;

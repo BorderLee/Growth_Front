@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../api/api_models.dart';
 import '../api/api_service.dart';
 import 'widgets/section_card.dart';
-import 'widgets/question_tab.dart';
-import 'records_screen.dart';
+import 'question_screen.dart';
+import 'list_screen.dart';
+//stt 변환 결과 창
 
 const _departments = [
   '내과', '정형외과', '피부과', '안과', '이비인후과',
